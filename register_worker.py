@@ -15,6 +15,7 @@ CAPABILITY_DESCRIPTION = os.environ.get("CAPABILITY_DESCRIPTION","")
 CAPABILITY_CAPACITY = os.environ.get("CAPABILITY_CAPACITY", 1)
 CAPABILITY_PRICE_PER_UNIT = os.environ.get("CAPABILITY_PRICE_PER_UNIT", 0)
 CAPABILITY_PRICE_SCALING = os.environ.get("CAPABILITY_PRICE_SCALING", 1)
+CAPABILITY_CURRENCY = os.environ.get("CAPABILITY_PRICE_CURRENCY","ETH")
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
@@ -27,7 +28,8 @@ def register_to_orchestrator():
         "description": CAPABILITY_DESCRIPTION,
         "capacity": int(CAPABILITY_CAPACITY),
         "price_per_unit": int(CAPABILITY_PRICE_PER_UNIT),
-        "price_scaling": int(CAPABILITY_PRICE_SCALING)
+        "price_scaling": int(CAPABILITY_PRICE_SCALING),
+        "currency": CAPABILITY_CURRENCY
     }
     headers = {
         "Authorization": ORCH_SECRET,

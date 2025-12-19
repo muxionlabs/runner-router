@@ -1,0 +1,20 @@
+services:
+  runner-router:
+    build:
+      context: ./router
+      dockerfile: Dockerfile.router
+    image: byoc-runner-router:latest
+    container_name: byoc-stream-runner-router
+    environment:
+      - "RUNNERS=${RUNNERS}"
+      - "AI_RUNNER_PORT=${AI_RUNNER_PORT}"
+      - "ORCH_URL=https://${ORCH_SERVICE_ADDR}"
+      - "ORCH_SECRET=${ORCH_SECRET}"
+      - "CAPABILITY_NAME=${CAPABILITY_NAME}"
+      - "CAPABILITY_DESCRIPTION=${CAPABILITY_DESCRIPTION}"
+      - "CAPABILITY_URL=${AI_RUNNER_URL}"
+      - "CAPABILITY_PRICE_PER_UNIT=${CAPABILITY_PRICE}"
+      - "CAPABILITY_PRICE_SCALING=1"
+      - "CAPABILITY_CAPACITY=${CAPABILITY_CAPACITY}"
+    ports:
+      - ${AI_RUNNER_PORT}:${AI_RUNNER_PORT}
