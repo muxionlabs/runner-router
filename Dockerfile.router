@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install uv
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+
+# Copy requirements first for better layer caching
+COPY requirements.txt /app/requirements.txt
+
+# Install dependencies using uv
+RUN uv pip install --system --no-cache -r /app/requirements.txt
+
+# Copy application code
+COPY . /app
+
+# Run the router
+CMD ["python", "-u", "/app/router.py"]
