@@ -665,7 +665,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=int(os.getenv("AI_RUNNER_PORT", "8443")),
+        port=int(os.getenv("ROUTER_PORT", "8443")),
         ssl_keyfile=str(key_path),
         ssl_certfile=str(cert_path),
         reload=False,

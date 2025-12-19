@@ -13,9 +13,9 @@ CAPABILITY_NAME = os.environ.get("CAPABILITY_NAME", "")
 CAPABILITY_URL = os.environ.get("CAPABILITY_URL","http://localhost:9876")
 CAPABILITY_DESCRIPTION = os.environ.get("CAPABILITY_DESCRIPTION","")
 CAPABILITY_CAPACITY = os.environ.get("CAPABILITY_CAPACITY", 1)
-CAPABILITY_PRICE_PER_UNIT = os.environ.get("CAPABILITY_PRICE_PER_UNIT", 0)
-CAPABILITY_PRICE_SCALING = os.environ.get("CAPABILITY_PRICE_SCALING", 1)
-CAPABILITY_CURRENCY = os.environ.get("CAPABILITY_PRICE_CURRENCY","ETH")
+CAPABILITY_PRICE_PER_UNIT = os.environ.get("CAPABILITY_PRICE_PER_UNIT", "0")
+CAPABILITY_PRICE_SCALING = os.environ.get("CAPABILITY_PRICE_SCALING", "1")
+CAPABILITY_CURRENCY = os.environ.get("CAPABILITY_PRICE_CURRENCY","WEI")
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ def register_to_orchestrator():
                 return False
             else:
                 logger.info(f"Attempt {attempt} failed: {e}")
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             if attempt == max_retries:
                 logger.error("All retries failed.")
             else:
