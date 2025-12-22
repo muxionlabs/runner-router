@@ -4,6 +4,7 @@ import sys
 import time
 import httpx
 import json
+import asyncio
 
 #set where to send registration request
 ORCH_URL = os.environ.get("ORCH_URL", "")
@@ -56,7 +57,7 @@ def register_to_orchestrator():
                 logger.error("orch secret incorrect")
                 return False
             else:
-                logger.info(f"Attempt {attempt} failed: {e}")
+                logger.info(f"Attempt {attempt} failed: status {response.status_code} - {response.text}")
         except httpx.HTTPError as e:
             if attempt == max_retries:
                 logger.error("All retries failed.")
@@ -64,3 +65,27 @@ def register_to_orchestrator():
                 time.sleep(delay)
 
     return False
+
+
+async def start_periodic_registration(interval_seconds: int = 60):
+    """Async task that re-runs registration every `interval_seconds` seconds.
+
+    This runs until cancelled by the caller.
+    """
+    logger.info(f"Starting periodic orchestrator registration every {interval_seconds}s")
+    try:
+        while True:
+            # Run the blocking register function in a thread
+            try:
+                success = await asyncio.to_thread(register_to_orchestrator)
+                if success:
+                    logger.debug("Periodic registration succeeded")
+                else:
+                    logger.warning("Periodic registration failed")
+            except Exception as e:
+                logger.exception(f"Exception during periodic registration: {e}")
+
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        logger.info("Periodic registration task cancelled")
+        raise

@@ -469,17 +469,34 @@ async def lifespan(app: FastAPI):
 
     await lb.start()
 
-    # Register to orchestrator
-    from register_worker import register_to_orchestrator
+    # Register to orchestrator and start periodic re-registration
+    from register_worker import register_to_orchestrator, start_periodic_registration
+    periodic_task = None
     registered = register_to_orchestrator()
     if not registered:
         logger.error("Failed to register to Orchestrator")
         raise ValueError("Failed to register to Orchestrator")
 
+    # Start background task to re-register every minute (configurable via REG_INTERVAL_SECONDS)
+    try:
+        interval = int(os.getenv("REG_INTERVAL_SECONDS", "60"))
+    except Exception:
+        interval = 60
+    periodic_task = asyncio.create_task(start_periodic_registration(interval))
+
     yield
 
     # Shutdown
     logger.info("Shutting down Stream Load Balancer...")
+
+    # Cancel periodic registration task if running
+    if 'periodic_task' in locals() and periodic_task is not None:
+        periodic_task.cancel()
+        try:
+            await periodic_task
+        except asyncio.CancelledError:
+            pass
+
     await lb.stop()
 
 
