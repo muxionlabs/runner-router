@@ -55,6 +55,64 @@ class Session:
     timer_task: Optional[asyncio.Task] = None
 
 
+class AuthMiddleware:
+    """
+    Middleware to validate Authorization header on all requests
+    """
+    
+    def __init__(self, app: FastAPI):
+        self.app = app
+        self.excluded_paths = ["/health"]
+        self.expected_auth_key = os.getenv("AUTH_KEY")
+    
+    async def __call__(self, scope, receive, send):
+        """Middleware call"""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        
+        request = Request(scope, receive)
+        
+        # Skip auth for excluded paths
+        if request.url.path in self.excluded_paths:
+            await self.app(scope, receive, send)
+            return
+        
+        # Skip auth if no AUTH_KEY is configured
+        if not self.expected_auth_key:
+            await self.app(scope, receive, send)
+            return
+        
+        # Get Authorization header
+        auth_header = request.headers.get("Authorization")
+        
+        if not auth_header:
+            # Return 401 Unauthorized
+            response = JSONResponse(
+                status_code=401,
+                content={"detail": "Authorization header is required"}
+            )
+            await response(scope, receive, send)
+            return
+        
+        # Extract the key from "Bearer <key>" format
+        if auth_header.startswith("Bearer "):
+            provided_key = auth_header[7:].strip()
+        else:
+            provided_key = auth_header
+        
+        if provided_key != self.expected_auth_key:
+            response = JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid API key"}
+            )
+            await response(scope, receive, send)
+            return
+        
+        # Auth passed, continue with the request
+        await self.app(scope, receive, send)
+
+
 class StreamLoadBalancer:
     """
     Stream-based load balancer that assigns exclusive upstreams to stream IDs
@@ -508,10 +566,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add authorization middleware
+app.add_middleware(AuthMiddleware)
+
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint (excluded from auth)"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
