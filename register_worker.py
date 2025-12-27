@@ -13,24 +13,25 @@ ORCH_SECRET = os.environ.get("ORCH_SECRET","")
 CAPABILITY_NAME = os.environ.get("CAPABILITY_NAME", "")
 CAPABILITY_URL = os.environ.get("CAPABILITY_URL","http://localhost:9876")
 CAPABILITY_DESCRIPTION = os.environ.get("CAPABILITY_DESCRIPTION","")
-CAPABILITY_CAPACITY = os.environ.get("CAPABILITY_CAPACITY", 1)
-CAPABILITY_PRICE_PER_UNIT = os.environ.get("CAPABILITY_PRICE_PER_UNIT", "0")
-CAPABILITY_PRICE_SCALING = os.environ.get("CAPABILITY_PRICE_SCALING", "1")
-CAPABILITY_CURRENCY = os.environ.get("CAPABILITY_PRICE_CURRENCY","WEI")
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 def register_to_orchestrator():
+    capability_capacity = int(os.environ.get("CAPABILITY_CAPACITY", 1))
+    capability_price_per_unit = int(os.environ.get("CAPABILITY_PRICE_PER_UNIT", "0"))
+    capability_price_scaling = int(os.environ.get("CAPABILITY_PRICE_SCALING", "1"))
+    capability_currency = os.environ.get("CAPABILITY_PRICE_CURRENCY","WEI")
+
     register_req = {
         "url": CAPABILITY_URL,
         "name": CAPABILITY_NAME,
         "description": CAPABILITY_DESCRIPTION,
-        "capacity": int(CAPABILITY_CAPACITY),
-        "price_per_unit": int(CAPABILITY_PRICE_PER_UNIT),
-        "price_scaling": int(CAPABILITY_PRICE_SCALING),
-        "currency": CAPABILITY_CURRENCY
+        "capacity": capability_capacity,
+        "price_per_unit": capability_price_per_unit,
+        "price_scaling": capability_price_scaling,
+        "currency": capability_currency
     }
     headers = {
         "Authorization": ORCH_SECRET,
