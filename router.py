@@ -53,6 +53,7 @@ class Session:
     upstream_url: str
     assigned_at: datetime
     timer_task: Optional[asyncio.Task] = None
+    worker_status_check_task: Optional[asyncio.Task] = None
 
 
 class AuthMiddleware:
@@ -216,6 +217,62 @@ class StreamLoadBalancer:
             logger.error(f"Unexpected error checking {upstream_url}: {e}")
             return False
 
+    async def check_worker_status(self, stream_id: str) -> bool:
+        """
+        Check if the worker for a stream is healthy by polling /status endpoint.
+
+        Args:
+            stream_id: The stream identifier to check
+
+        Returns:
+            True if worker reports status: "OK" and gateway_request_id matches stream_id
+        """
+        if stream_id not in self.sessions:
+            logger.warning(f"Session {stream_id} not found for status check")
+            return False
+
+        session = self.sessions[stream_id]
+        upstream_url = session.upstream_url
+
+        try:
+            status_url = f"{upstream_url}/status"
+            response = await self.client.get(status_url, timeout=5.0)
+
+            if response.status_code != 200:
+                logger.warning(f"Status check failed for {upstream_url}: HTTP {response.status_code}")
+                return False
+
+            try:
+                data = response.json()
+                status = data.get("status")
+                current_params = data.get("current_params", {})
+                gateway_request_id = current_params.get("gateway_request_id")
+
+                if status != "OK":
+                    logger.warning(f"Worker {upstream_url} status: {status}")
+                    return False
+
+                if gateway_request_id != stream_id:
+                    logger.warning(
+                        f"Worker {upstream_url} gateway_request_id mismatch: "
+                        f"expected {stream_id}, got {gateway_request_id}"
+                    )
+                    return False
+
+                logger.debug(f"Worker status OK for stream {stream_id}")
+                return True
+
+            except Exception as e:
+                logger.warning(f"Failed to parse JSON from {status_url}: {e}")
+                return False
+
+        except httpx.RequestError as e:
+            logger.warning(f"Status check request failed for {upstream_url}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error checking {upstream_url}: {e}")
+            return False
+
     async def get_upstream(self, stream_id: str) -> str:
         """
         Get the assigned upstream for a stream (does not assign new ones)
@@ -315,11 +372,15 @@ class StreamLoadBalancer:
         if self.session_timeout > 0:
             timer_task = asyncio.create_task(self._session_timeout(stream_id))
 
+        # Start worker status polling task
+        status_check_task = asyncio.create_task(self._worker_status_poll(stream_id))
+
         self.sessions[stream_id] = Session(
             stream_id=stream_id,
             upstream_url=available_upstream.url,
             assigned_at=now,
-            timer_task=timer_task
+            timer_task=timer_task,
+            worker_status_check_task=status_check_task
         )
 
         timeout_msg = f"(timeout: {self.session_timeout}s)" if self.session_timeout > 0 else "(no timeout)"
@@ -349,6 +410,11 @@ class StreamLoadBalancer:
         if session.timer_task:
             session.timer_task.cancel()
 
+        # Cancel status check task
+        if session.worker_status_check_task:
+            session.worker_status_check_task.cancel()
+            session.worker_status_check_task = None
+
         # Mark upstream as available
         if session.upstream_url in self.upstreams:
             upstream = self.upstreams[session.upstream_url]
@@ -372,9 +438,44 @@ class StreamLoadBalancer:
         try:
             await asyncio.sleep(self.session_timeout)
             logger.warning(f"Session timeout for stream {stream_id}")
+
+            # Cancel status check task before releasing
+            if stream_id in self.sessions:
+                session = self.sessions[stream_id]
+                if session.worker_status_check_task:
+                    session.worker_status_check_task.cancel()
+
             await self.release_session(stream_id)
         except asyncio.CancelledError:
             # Timer was cancelled, which is normal
+            pass
+
+    async def _worker_status_poll(self, stream_id: str):
+        """
+        Background task that polls worker status every 10 seconds.
+        Releases session if status check fails.
+        """
+        poll_interval = int(os.getenv("WORKER_STATUS_POLL_INTERVAL", "10"))
+
+        try:
+            while True:
+                await asyncio.sleep(poll_interval)
+
+                # Check if session still exists
+                if stream_id not in self.sessions:
+                    logger.debug(f"Session {stream_id} ended, stopping status poll")
+                    break
+
+                # Perform status check
+                is_healthy = await self.check_worker_status(stream_id)
+
+                if not is_healthy:
+                    logger.warning(f"Worker status check failed for stream {stream_id}, releasing session")
+                    await self.release_session(stream_id)
+                    break
+
+        except asyncio.CancelledError:
+            # Task was cancelled, which is normal
             pass
 
     async def proxy_request(
@@ -546,6 +647,12 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Stream Load Balancer...")
+
+    # Cancel all status check tasks before stopping
+    if lb is not None:
+        for session in lb.sessions.values():
+            if session.worker_status_check_task:
+                session.worker_status_check_task.cancel()
 
     # Cancel periodic registration task if running
     if 'periodic_task' in locals() and periodic_task is not None:
