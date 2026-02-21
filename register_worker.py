@@ -9,10 +9,12 @@ import asyncio
 #set where to send registration request
 ORCH_URL = os.environ.get("ORCH_URL", "")
 ORCH_SECRET = os.environ.get("ORCH_SECRET","")
+
 #create registration request
 CAPABILITY_NAME = os.environ.get("CAPABILITY_NAME", "")
 CAPABILITY_URL = os.environ.get("CAPABILITY_URL","http://localhost:9876")
 CAPABILITY_DESCRIPTION = os.environ.get("CAPABILITY_DESCRIPTION","")
+AUTH_KEY = os.environ.get("AUTH_KEY","")
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ def register_to_orchestrator():
 
     register_req = {
         "url": CAPABILITY_URL,
+        "auth_key": AUTH_KEY,
         "name": CAPABILITY_NAME,
         "description": CAPABILITY_DESCRIPTION,
         "capacity": capability_capacity,
