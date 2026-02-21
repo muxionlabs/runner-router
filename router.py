@@ -235,7 +235,7 @@ class StreamLoadBalancer:
         upstream_url = session.upstream_url
 
         try:
-            status_url = f"{upstream_url}/status"
+            status_url = f"{upstream_url}/stream/status"
             response = await self.client.get(status_url, timeout=5.0)
 
             if response.status_code != 200:
