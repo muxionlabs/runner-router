@@ -35,7 +35,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
 @dataclass
 class UpstreamInfo:
@@ -234,44 +234,83 @@ class StreamLoadBalancer:
         session = self.sessions[stream_id]
         upstream_url = session.upstream_url
 
-        try:
-            status_url = f"{upstream_url}/stream/status"
-            response = await self.client.get(status_url, timeout=5.0)
-
-            if response.status_code != 200:
-                logger.warning(f"Status check failed for {upstream_url}: HTTP {response.status_code}")
-                return False
-
+        # Retry configuration
+        max_retries = 3
+        base_delay = 1.0  # seconds
+        max_delay = 5.0   # seconds
+        
+        last_exception = None
+        
+        for attempt in range(1, max_retries + 1):
             try:
-                data = response.json()
-                status = data.get("status")
-                current_params = data.get("current_params", {})
-                gateway_request_id = current_params.get("gateway_request_id")
+                status_url = f"{upstream_url}/stream/status"
+                logger.debug(f"Status check attempt {attempt}/{max_retries} for {status_url}")
+                
+                response = await self.client.get(status_url, timeout=5.0)
 
-                if status != "OK":
-                    logger.warning(f"Worker {upstream_url} status: {status}")
-                    return False
-
-                if gateway_request_id != stream_id:
+                if response.status_code != 200:
                     logger.warning(
-                        f"Worker {upstream_url} gateway_request_id mismatch: "
-                        f"expected {stream_id}, got {gateway_request_id}"
+                        f"Status check attempt {attempt}/{max_retries} failed for {upstream_url}: "
+                        f"HTTP {response.status_code}"
                     )
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                        logger.debug(f"Retrying in {delay}s...")
+                        await asyncio.sleep(delay)
+                        continue
                     return False
 
-                logger.debug(f"Worker status OK for stream {stream_id}")
-                return True
+                try:
+                    data = response.json()
+                    status = data.get("status")
+                    current_params = data.get("current_params", {})
+                    gateway_request_id = current_params.get("gateway_request_id")
 
+                    if status != "OK":
+                        logger.warning(f"Worker {upstream_url} status: {status}")
+                        return False
+
+                    if gateway_request_id != stream_id:
+                        logger.warning(
+                            f"Worker {upstream_url} gateway_request_id mismatch: "
+                            f"expected {stream_id}, got {gateway_request_id}"
+                        )
+                        return False
+
+                    logger.info(f"Worker status OK for stream {stream_id}")
+                    return True
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to parse JSON from {status_url} on attempt {attempt}/{max_retries}: {e}"
+                    )
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                        await asyncio.sleep(delay)
+                        continue
+                    return False
+
+            except httpx.RequestError as e:
+                last_exception = e
+                logger.warning(
+                    f"Status check attempt {attempt}/{max_retries} failed for {upstream_url}: "
+                    f"{type(e).__name__}: {str(e) or 'no details'}"
+                )
+                if attempt < max_retries:
+                    delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                    logger.debug(f"Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                continue
             except Exception as e:
-                logger.warning(f"Failed to parse JSON from {status_url}: {e}")
+                logger.error(f"Unexpected error checking {upstream_url}: {type(e).__name__}: {e}")
                 return False
 
-        except httpx.RequestError as e:
-            logger.warning(f"Status check request failed for {upstream_url}: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error checking {upstream_url}: {e}")
-            return False
+        # All retries exhausted
+        logger.error(
+            f"Status check failed for {upstream_url} after {max_retries} attempts. "
+            f"Last error: {last_exception}"
+        )
+        return False
 
     async def get_upstream(self, stream_id: str) -> str:
         """
