@@ -71,6 +71,41 @@ def register_to_orchestrator():
     return False
 
 
+def unregister_from_orchestrator():
+    """Unregister this capability from the orchestrator.
+    
+    Sends a POST request to /capability/unregister with the capability name
+    as plain text in the body.
+    """
+    if not ORCH_URL or not CAPABILITY_NAME:
+        logger.warning("ORCH_URL or CAPABILITY_NAME not set, skipping unregistration")
+        return False
+    
+    headers = {
+        "Authorization": ORCH_SECRET,
+    }
+    
+    logger.info(f"Unregistering capability: {CAPABILITY_NAME}")
+    try:
+        response = httpx.post(
+            f"{ORCH_URL}/capability/unregister",
+            content=CAPABILITY_NAME,  # Plain text body
+            headers=headers,
+            timeout=5,
+            verify=False,      # Orch not expected to have legit signed certs
+        )
+
+        if response.status_code == 200:
+            logger.info("Capability unregistered successfully")
+            return True
+        else:
+            logger.warning(f"Unregister failed: status {response.status_code} - {response.text}")
+            return False
+    except httpx.HTTPError as e:
+        logger.error(f"Unregister request failed: {e}")
+        return False
+
+
 async def start_periodic_registration(interval_seconds: int = 60):
     """Async task that re-runs registration every `interval_seconds` seconds.
 

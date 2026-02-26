@@ -668,7 +668,7 @@ async def lifespan(app: FastAPI):
     await lb.start()
 
     # Register to orchestrator and start periodic re-registration
-    from register_worker import register_to_orchestrator, start_periodic_registration
+    from register_worker import register_to_orchestrator, start_periodic_registration, unregister_from_orchestrator
     periodic_task = None
     registered = register_to_orchestrator()
     if not registered:
@@ -700,6 +700,10 @@ async def lifespan(app: FastAPI):
             await periodic_task
         except asyncio.CancelledError:
             pass
+
+    # Unregister from orchestrator
+    logger.info("Unregistering from orchestrator...")
+    unregister_from_orchestrator()
 
     await lb.stop()
 
