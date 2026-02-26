@@ -64,7 +64,7 @@ class AuthMiddleware:
     def __init__(self, app: FastAPI):
         self.app = app
         self.excluded_paths = ["/health"]
-        self.expected_auth_key = os.getenv("AUTH_KEY")
+        self.expected_auth_token = os.getenv("AUTH_TOKEN")
     
     async def __call__(self, scope, receive, send):
         """Middleware call"""
@@ -79,8 +79,8 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
         
-        # Skip auth if no AUTH_KEY is configured
-        if not self.expected_auth_key:
+        # Skip auth if no AUTH_TOKEN is configured
+        if not self.expected_auth_token:
             await self.app(scope, receive, send)
             return
         
@@ -98,11 +98,11 @@ class AuthMiddleware:
         
         # Extract the key from "Bearer <key>" format
         if auth_header.startswith("Bearer "):
-            provided_key = auth_header[7:].strip()
+            provided_token = auth_header[7:].strip()
         else:
-            provided_key = auth_header
-        
-        if provided_key != self.expected_auth_key:
+            provided_token = auth_header
+
+        if provided_token != self.expected_auth_token:
             response = JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid API key"}

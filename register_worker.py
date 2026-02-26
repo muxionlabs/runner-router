@@ -28,7 +28,7 @@ def register_to_orchestrator():
 
     register_req = {
         "url": CAPABILITY_URL,
-        "auth_key": AUTH_KEY,
+        "token": AUTH_KEY,
         "name": CAPABILITY_NAME,
         "description": CAPABILITY_DESCRIPTION,
         "capacity": capability_capacity,
