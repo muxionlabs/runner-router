@@ -14,7 +14,7 @@ ORCH_SECRET = os.environ.get("ORCH_SECRET","")
 CAPABILITY_NAME = os.environ.get("CAPABILITY_NAME", "")
 CAPABILITY_URL = os.environ.get("CAPABILITY_URL","http://localhost:9876")
 CAPABILITY_DESCRIPTION = os.environ.get("CAPABILITY_DESCRIPTION","")
-AUTH_KEY = os.environ.get("AUTH_KEY","")
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN","")
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def register_to_orchestrator():
 
     register_req = {
         "url": CAPABILITY_URL,
-        "token": AUTH_KEY,
+        "token": AUTH_TOKEN,
         "name": CAPABILITY_NAME,
         "description": CAPABILITY_DESCRIPTION,
         "capacity": capability_capacity,
