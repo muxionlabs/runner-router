@@ -43,7 +43,11 @@ def register_to_orchestrator():
     #do the registration
     max_retries = 10
     delay = 2  # seconds
-    logger.info("registering: "+json.dumps(register_req))
+    # Log registration request with token masked if not empty
+    log_req = register_req.copy()
+    if log_req.get("token") != "":
+        log_req["token"] = "[token]"
+    logger.info("registering: "+json.dumps(log_req))
     for attempt in range(1, max_retries + 1):
         try:
             response = httpx.post(
